@@ -83,25 +83,37 @@ class SentinelClient(DefaultClient):
 
         sentinel_timeout = self._options.get('SENTINEL_TIMEOUT', 1)
         password = self._options.get('PASSWORD', None)
-        sentinel = SentinelClass(sentinel_hosts,
-                                 socket_timeout=sentinel_timeout,
-                                 password=password)
+        use_ssl = self._options.get('USE_SSL', False)
+        if not use_ssl:
+            sentinel = SentinelClass(
+                sentinel_hosts,
+                socket_timeout=sentinel_timeout,
+                password=password,
+            )
+        else:
+            ssl_ca_cert_path = self._options.get('SSL_CA_CERT', None)
+            if not ssl_ca_cert_path:
+                raise ImproperlyConfigured(
+                    "`SSL_CA_CERT` is not set. In SSL mode you must specify certificate path.",
+                )
+            sentinel = SentinelClass(
+                sentinel_hosts,
+                socket_timeout=sentinel_timeout,
+                password=password,
+                ssl=True,
+                ssl_ca_certs=ssl_ca_cert_path,
+            )
 
         if write:
-            host, port = sentinel.discover_master(master_name)
+            if password:
+                return sentinel.master_for(master_name, password=password)
+            else:
+                return sentinel.master_for(master_name)
         else:
-            try:
-                host, port = random.choice(sentinel.discover_slaves(master_name))
-            except IndexError:
-                self.log.debug("no slaves are available. using master for read.")
-                host, port = sentinel.discover_master(master_name)
-
-        if password:
-            connection_url = "redis://:%s@%s:%s/%s" % (password, host, port, db)
-        else:
-            connection_url = "redis://%s:%s/%s" % (host, port, db)
-        self.log.debug("Connecting to: %s", connection_url)
-        return self.connection_factory.connect(connection_url)
+            if password:
+                return sentinel.slave_for(master_name, password=password)
+            else:
+                return sentinel.slave_for(master_name)
 
     def close(self, **kwargs):
         """
