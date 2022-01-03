@@ -23,7 +23,7 @@ setup(
     long_description=long_description,
     long_description_content_type='text/markdown',
     install_requires=[
-        "django-redis>=4.7.0,<5",
+        "django-redis>=4.7.0,<5.2.0",
     ],
     zip_safe=False,
     include_package_data=True,
